@@ -1,0 +1,417 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# In[1]:
+
+
+#Alpha_RootCause
+import pandas as pd
+import matplotlib
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+#import Alpha_Data_Preprocessing as adp
+import matplotlib.pyplot as plt
+
+
+# In[2]:
+
+
+df = pd.read_parquet(r'C:\Users\CBU6BU\Desktop\ProjeDosyaları\rootCause\processed_last100K.parquet')
+
+
+# In[3]:
+
+
+df.head()
+
+
+# In[4]:
+
+
+df.shape
+
+
+# In[ ]:
+
+
+
+
+
+# In[5]:
+
+
+#define target and get in dictionary
+cvoa = 'PN_155301001_Result_MeasResults_Cvo_CvoA_Qber_Qber'
+cvoa_up = 2.262
+cvoa_low = 1.638
+
+s2s = 'PN_155301001_Result_MeasResults_S2SDispersal_RangeS2STabTiCurve2'
+s2s_up = 0.030
+s2s_low = 0
+
+cvoc = 'PN_155301001_Result_MeasResults_Cvo_CvoC_Qber_Qber'
+cvoc_up = 22.999
+cvoc_low = 20.121
+
+
+dic = {
+    cvoa : (cvoa_up,cvoa_low),
+    s2s : (s2s_up,s2s_low),
+    cvoc : (cvoc_up,cvoc_low)
+    
+}
+
+
+# In[32]:
+
+
+
+from pandas.api.types import is_numeric_dtype
+
+target_labels = ["PN_155301001_Result_MeasResults_Cvo_CvoA_Qber_Qber",
+                 "PN_155301001_Result_MeasResults_Cvo_CvoC_Qber_Qber",
+                 "PN_155301001_Result_MeasResults_S2SDispersal_RangeS2STabTiCurve2"]
+
+def plot_correlation_with_other_cols(df_in: df, target_cols: list, correlation_value: float = 0.3):
+    x_cols = [col for col in df_in.columns if col not in target_cols if is_numeric_dtype(df_in[col])]
+
+    for targ_col in target_cols:
+        labels = []
+        values = []
+        for col in x_cols:
+            labels.append(col)
+            values.append(np.corrcoef(df_in[col].values, df_in[targ_col].values)[0, 1])
+        corr_df = pd.DataFrame({'col_labels':labels, 'corr_values':values})
+        corr_df = corr_df.sort_values(by='corr_values')
+        corr_df = corr_df.loc[abs(corr_df['corr_values']) > correlation_value]
+        ind = np.arange(len(corr_df))
+        width = 0.9
+        fig, ax = plt.subplots(figsize=(12,60))
+        rects = ax.barh(ind, np.array(corr_df.corr_values.values), color='y')
+        ax.set_yticks(ind)
+        ax.set_yticklabels(corr_df.col_labels.values, rotation='horizontal')
+        ax.set_xlabel("Correlation coefficient")
+        ax.set_title("Correlation coefficient of "+ targ_col)
+    #autolabel(rects)
+    plt.show()
+
+
+# In[33]:
+
+
+#plot_correlation_with_other_cols(df, target_labels,0.03)
+
+
+# In[34]:
+
+
+def df_featureselection(df,target,correlation_value):
+    df.columns = ["".join (c if c.isalnum() else "_" for c in str(x)) for x in df.columns]
+
+    x_cols = [col for col in df.columns if col not in [target] if df[col].dtype=='float64']
+
+    labels = []
+    values = []
+
+    for col in x_cols:
+        labels.append(col)
+        values.append(np.corrcoef(df[col].values, df[target].values)[0,1])
+    corr_df = pd.DataFrame({'col_labels':labels, 'corr_values':values})
+    corr_df = corr_df.sort_values(by='corr_values', ascending=False)
+    corr_df["corr_values"]  = corr_df["corr_values"].abs()
+    corr_df = corr_df
+        
+    return corr_df
+
+
+# In[35]:
+
+
+def corr_columns(df_in, targ, cor_val=0,  number=15):
+    print("Correlation Features" + " " + "for"+ " " + targ)
+    corr_df = df_featureselection(df_in,targ,cor_val)
+    #adp.df_featureselection(df,target_labels['target1'],0.15)
+    corr_df_sorted = corr_df.sort_values(by="corr_values", ascending=False)
+    corr_df_sorted = corr_df_sorted[corr_df_sorted["corr_values"] > cor_val]
+    corr_last = corr_df_sorted[:number].reset_index()
+    corr_last.drop("index", axis=1, inplace=True)
+
+    
+    return corr_last
+
+
+# In[36]:
+
+
+corr_df_cvoa = corr_columns(df, cvoa)
+corr_df_s2s = corr_columns(df,s2s)
+corr_df_cvoc = corr_columns(df, cvoc)
+#to find another corr df, create new one like corr_df_xxx=corr_columns(df,xxx)
+
+
+# In[37]:
+
+
+corr_df_cvoa
+
+
+# In[38]:
+
+
+corr_df_s2s
+
+
+# In[39]:
+
+
+corr_df_cvoc
+
+
+# In[13]:
+
+
+target_list = [corr_df_cvoa, corr_df_s2s, corr_df_cvoc]
+#input--- corr_df_xxx
+
+
+# In[14]:
+
+
+df['Size'] = np.where(df['PartState']=='OK', 1, 900)
+
+
+# In[40]:
+
+
+df.head()
+
+
+# In[16]:
+
+
+corr_list1 = corr_df_cvoa["col_labels"]
+corr_list_val1 = corr_df_cvoa["corr_values"]
+
+corr_list2= corr_df_s2s["col_labels"]
+corr_list_val2 = corr_df_s2s["corr_values"]
+
+corr_list3 = corr_df_cvoc["col_labels"]
+corr_list_val3 = corr_df_cvoc["corr_values"]
+
+
+# In[ ]:
+
+
+
+
+
+# In[17]:
+
+
+def create_dict(targ,number,df_in):
+    
+    if targ==cvoa:
+        corr_list=corr_list1
+        corr_val=corr_list_val1
+        print("cvoa")
+        
+        #return corr_val
+    if targ==s2s:
+        corr_list=corr_list2
+        corr_val=corr_list_val2
+        print("s2s")
+        #return corr_val
+    if targ==cvoc:
+        corr_list=corr_list3
+        corr_val=corr_list_val3
+        print("cvoc")
+        #return corr_val
+    
+        #for i in list(range(len(corr_list))):
+    for i in list(range(number)):
+        targ_f = corr_list[i]
+        print(targ)
+        targ_f_min=df_in[corr_list[i]].min()
+        targ_f_max=df_in[corr_list[i]].max()
+        targ_f_corr_val=corr_val[i]
+        print("------------------")
+        print("Correlated Feature:"," ",targ_f," Correlation Value is:"," ",targ_f_corr_val)
+            
+        aralik = targ_f_max - targ_f_min
+        ar = aralik/5
+        
+            
+        lev1 = targ_f_min + ar
+        lev2 = lev1 + ar
+        lev3 = lev2 + ar
+        lev4 = lev3 + ar
+        lev5 = lev4 + ar
+            
+        print("Class5:",lev4, "to",lev5)
+        print("Class4:",lev3, "to",lev4)
+        print("Class3:",lev2, "to",lev3)
+        print("Class2:",lev1, "to",lev2)
+        print("Class1:",targ_f_min, "to",lev1)
+          
+        
+        class5 =df_in[(df_in[targ_f]>=lev4)]
+        #class1 = df[(df[bound_dic1[targ][i]]>=lev4)& (df[bound_dic1[targ][i]]<=bound_dic1[targ][i+1])]
+      
+        class5 = class5['PartState']
+        class5 = class5.reset_index()
+            
+        print("class5:IO number:")
+        print(len(class5.loc[class5['PartState'] =='OK']))
+        print("class5:NIO number:")
+        print(len(class5.loc[class5['PartState'] !='OK']))
+        if ((len(class5.loc[class5['PartState'] !='OK'])) ==0 & (len(class5.loc[class5['PartState'] =='OK']))==0):
+            print ("no data for this class:")
+            #yuznio2 != (len(class2.loc[class2['PartState'] !='OK'])*100)/((len(class2.loc[class2['PartState'] =='OK']))+(len(class2.loc[class2['PartState'] !='OK'])))
+            nio_perc5 = 0
+            print("Class5 NIO%=" , nio_perc5)
+        else:
+            nio_perc5 = (len(class5.loc[class5['PartState'] !='OK'])*100)/((len(class5.loc[class5['PartState'] =='OK']))+(len(class5.loc[class5['PartState'] !='OK'])))
+            print("Class5 NIO%=" , nio_perc5)
+        #yuznio1 = (len(class1.loc[class1['PartState'] !='OK'])*100)/((len(class1.loc[class1['PartState'] =='OK']))+(len(class1.loc[class1['PartState'] !='OK'])))
+        class5_tot = ((len(class5.loc[class5['PartState'] =='OK']))+(len(class5.loc[class5['PartState'] !='OK'])))
+                             
+        class4 =df_in[(df_in[targ_f]>=lev3) & (df_in[targ_f]<=lev4)]
+        class4 = class4['PartState']
+        class4 = class4.reset_index()
+            
+        print("class4:IO number:")
+        print(len(class4.loc[class4['PartState'] =='OK']))
+        print("class4:NIO number:")
+        print(len(class4.loc[class4['PartState'] !='OK']))
+        if ((len(class4.loc[class4['PartState'] !='OK'])) ==0 & (len(class4.loc[class4['PartState'] =='OK']))==0):
+            print ("no data for this class:")
+            #yuznio2 != (len(class2.loc[class2['PartState'] !='OK'])*100)/((len(class2.loc[class2['PartState'] =='OK']))+(len(class2.loc[class2['PartState'] !='OK'])))
+            nio_perc4 = 0
+            print("Class4 NIO%=" , nio_perc4)
+        else:
+            nio_perc4 = (len(class4.loc[class4['PartState'] !='OK'])*100)/((len(class4.loc[class4['PartState'] =='OK']))+(len(class4.loc[class4['PartState'] !='OK'])))
+            
+            print("Class4 NIO%=" , nio_perc4)
+        #yuznio1 = (len(class1.loc[class1['PartState'] !='OK'])*100)/((len(class1.loc[class1['PartState'] =='OK']))+(len(class1.loc[class1['PartState'] !='OK'])))
+        class4_tot = ((len(class4.loc[class4['PartState'] =='OK']))+(len(class4.loc[class4['PartState'] !='OK'])))
+               
+                
+        class3 =df_in[(df_in[targ_f]>=lev2) & (df_in[targ_f]<=lev3)]
+        class3 = class3['PartState']
+        class3 = class3.reset_index()
+            
+        print("class3:IO number:")
+        print(len(class3.loc[class3['PartState'] =='OK']))
+        print("class3:NIO number:")
+        print(len(class3.loc[class3['PartState'] !='OK']))
+        if ((len(class3.loc[class3['PartState'] !='OK'])) ==0 & (len(class3.loc[class3['PartState'] =='OK']))==0):
+            print ("no data for this class:")
+            #yuznio2 != (len(class2.loc[class2['PartState'] !='OK'])*100)/((len(class2.loc[class2['PartState'] =='OK']))+(len(class2.loc[class2['PartState'] !='OK'])))
+            nio_perc3 = 0
+            print("Class3 NIO%=" , nio_perc3)
+        else:
+            nio_perc3 = (len(class3.loc[class3['PartState'] !='OK'])*100)/((len(class3.loc[class3['PartState'] =='OK']))+(len(class3.loc[class3['PartState'] !='OK'])))
+            
+            print("Class3 NIO%=" , nio_perc3)
+        #yuznio1 = (len(class1.loc[class1['PartState'] !='OK'])*100)/((len(class1.loc[class1['PartState'] =='OK']))+(len(class1.loc[class1['PartState'] !='OK'])))
+        class3_tot = ((len(class3.loc[class3['PartState'] =='OK']))+(len(class3.loc[class3['PartState'] !='OK'])))
+         
+        
+        class2 =df_in[(df_in[targ_f]>=lev1) & (df_in[targ_f]<=lev2)]
+        class2 = class2['PartState']
+        class2 = class2.reset_index()
+            
+        print("class2:IO number:")
+        print(len(class2.loc[class2['PartState'] =='OK']))
+        print("class2:NIO number:")
+        print(len(class2.loc[class2['PartState'] !='OK']))
+        if ((len(class2.loc[class2['PartState'] !='OK'])) ==0 & (len(class2.loc[class2['PartState'] =='OK']))==0):
+            print ("no data for this class:")
+            #yuznio2 != (len(class2.loc[class2['PartState'] !='OK'])*100)/((len(class2.loc[class2['PartState'] =='OK']))+(len(class2.loc[class2['PartState'] !='OK'])))
+            nio_perc2 = 0
+            print("Class2 NIO%=" , nio_perc2)
+        else:
+            nio_perc2 = (len(class2.loc[class2['PartState'] !='OK'])*100)/((len(class2.loc[class2['PartState'] =='OK']))+(len(class2.loc[class2['PartState'] !='OK'])))
+            
+            print("Class2 NIO%=" , nio_perc2)
+        #yuznio1 = (len(class1.loc[class1['PartState'] !='OK'])*100)/((len(class1.loc[class1['PartState'] =='OK']))+(len(class1.loc[class1['PartState'] !='OK'])))
+        class2_tot = ((len(class2.loc[class2['PartState'] =='OK']))+(len(class2.loc[class2['PartState'] !='OK'])))
+         
+        
+        class1 = df_in[(df_in[targ_f]>=targ_f_min) & (df_in[targ_f]<=lev1)]
+        class1 = class1['PartState']
+        class1 = class1.reset_index()
+            
+        print("class1:IO number:")
+        print(len(class1.loc[class1['PartState'] =='OK']))
+        print("class1:NIO number:")
+        print(len(class1.loc[class1['PartState'] !='OK']))
+        if ((len(class1.loc[class1['PartState'] !='OK'])) ==0 & (len(class1.loc[class1['PartState'] =='OK']))==0):
+            print ("no data for this class:")
+            #yuznio2 != (len(class2.loc[class2['PartState'] !='OK'])*100)/((len(class2.loc[class2['PartState'] =='OK']))+(len(class2.loc[class2['PartState'] !='OK'])))
+            nio_perc1 = 0
+            print("Class1 NIO%=" , nio_perc1)
+        else:
+            nio_perc1 = (len(class1.loc[class1['PartState'] !='OK'])*100)/((len(class1.loc[class1['PartState'] =='OK']))+(len(class1.loc[class1['PartState'] !='OK'])))
+            
+            print("Class1 NIO%=" , nio_perc1)
+        #yuznio1 = (len(class1.loc[class1['PartState'] !='OK'])*100)/((len(class1.loc[class1['PartState'] =='OK']))+(len(class1.loc[class1['PartState'] !='OK'])))
+        class1_tot = ((len(class1.loc[class1['PartState'] =='OK']))+(len(class1.loc[class1['PartState'] !='OK'])))
+
+        sns.relplot(x=targ,y=targ_f ,data=df_in,marker='o',style= "Size",hue="PartState",size="Size" ,alpha=0.9, sizes=(10, 100))
+        plt.axhline(y=targ_f_min,color="blue")
+        plt.axhline(y=targ_f_max,color="blue")
+        plt.axhline(y=lev1,color ="silver")
+        plt.axhline(y=lev2,color ="silver")
+        plt.axhline(y=lev3,color ="silver")
+        plt.axhline(y=lev4,color ="silver")
+        plt.axvline(x=dic[targ][0], color="red")
+        plt.axvline(x=dic[targ][1], color="red")
+        plt.show()
+        
+        d = {'Classes':[1,2,3,4,5],'Perc': [nio_perc1,nio_perc2,nio_perc3,nio_perc4,nio_perc5]}
+        df5=pd.DataFrame(data=d)
+        sns.barplot(x="Classes", y="Perc", data=df5)
+        plt.show()
+        
+        #print(len(df[df[dic[targ][i]]]<=bound_dic1[targ][i+1]))
+        #plt.savefig("C:/Users/CBU6BU/Desktop/ProjeDosyaları/speedweek/{}.png".format(targ +" " + " & " + " " + bound_dic1[targ][0]))
+    
+
+
+# In[18]:
+
+
+create_dict(cvoa,5,df)
+
+
+# In[25]:
+
+
+create_dict(s2s,5,df)
+
+
+# In[26]:
+
+
+create_dict(cvoc,5,df)
+
+
+# In[ ]:
+
+
+
+
+
+# In[ ]:
+
+
+
+
+
+# In[ ]:
+
+
+
+
