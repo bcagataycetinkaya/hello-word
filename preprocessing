@@ -1,0 +1,436 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# In[1]:
+
+
+
+
+#! Project Alpha TO DO
+
+"""
+#!    Data Preprocessing (Yigitcan, Muratcan)
+    @audit-ok    Data cleansing
+    @audit-ok    Missing value
+    @audit   Remove outlier
+    @audit-ok    Normalize data
+    @audit    Shap Analysis (Yigitcan)
+    @audit    Convert categorical to dummy
+"""
+#Data Cleaning
+"""
+Content;
+@audit-ok Drop Columns if All values are NaN
+@audit-ok Show the missing values percantage with threshold %
+@audit-ok Drop Column if more than %80 percent is empty
+@audit-ok Drop colums if there is not enough unique value in one column.witha threshold
+@audit-ok Show Data types in dataset (df.dtypes.value_counts())
+@audit-ok Drop Columns by Type from Dataset
+@audit-ok Drop exactly same columns from dataset ("Duplicates")
+@audit-ok Drop columns with percentage more than %x zeros.. with threshold
+@audit-ok Reindex dataset before normalizing
+@audit-ok Change all data's to float64 type
+@audit-info Change the datatype to desired format
+
+"""
+
+#Missing Values
+"""
+If there is not so much missing values on dataset
+we should fill them with mean value. 
+
+Or if there is so many missing value in one row 
+drop row with threshold.
+"""
+
+#import pytest
+#import alpha_clean_and_explore as adp
+#import utilities
+import pandas as pd
+import matplotlib
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import openpyxl
+from scipy import stats
+import unittest
+from matplotlib.pyplot import subplots_adjust
+from sklearn.preprocessing import Normalizer
+#import pyarrow.parquet as pq
+
+
+#import data from excel
+#df = pd.read_csv(r'C:\Users\tay5bu\Desktop\Python_20\Project_Alpha\sample5K.csv', sep=";", decimal=",")
+#df = pd.read_excel (r'C:\Users\tay5bu\Desktop\Python_20\Project_Alpha\outlier.xlsx')
+#df = pd.read_excel (r'C:\Users\tay5bu\Desktop\GitLab\Unit_TestDataset.xlsx')
+df = pd.read_csv(r'C:\Users\CBU6BU\Desktop\ProjeDosyaları\Plots_Features\ALPHA_DATA_SL01.csv', sep=";", decimal=",")
+#df
+#df.info()
+
+def fun(x):
+    return x + 1
+
+#drop columns if there is all NAN
+def drop_nans(df):
+    df = df.dropna(axis=1, how='all')
+    df.info()
+    print("Columns which has all NaN dropped")
+    return df
+#df = drop_nans(df)
+#df.info()
+
+#Show the missing values percantage with threshold %
+def missingrate_show(df,threshold):
+    # - ? Deleted dfmissing_df first var.
+    missing_df = df.isnull().sum(axis=0).reset_index()
+    missing_df.columns = ['column_name', 'missing_count']
+    missing_df['missing_ratio'] = missing_df['missing_count'] / df.shape[0]
+    print(missing_df.loc[missing_df['missing_ratio']>threshold])
+    threshold = threshold*100
+    print("Missing Rate more than %"+ str(threshold) +" and infos for Dataset...")
+    return df
+#missingrate_show(df,0.8)
+
+#Drop Column if more than %threshold percent is empty
+def missingrate_drop(df,threshold):
+    df = df.loc[:, df.isnull().sum() < threshold*df.shape[0]]
+    df.info()
+    threshold = threshold*100
+    print("Missing Rate more than %"+ str(threshold) +" Dropped...")
+    return df
+#df = missingrate_drop(df,0.8)
+
+#Missing Value Fill with Mean
+def df_fillmissing_wmean(df):
+    df = df.fillna(df.mean())
+    print("Missing Values filled with Mean...")
+    df.info()
+    missingrate_show(df,0.0001)
+    print(df.dtypes.value_counts())
+    return df
+#df_fillmissing_wmean(df)
+
+#Drop colums if there is not enough unique value in one column.with threshold %
+def drop_nonunique(df,threshold):
+    nunique = df.apply(pd.Series.nunique)
+    threshold = threshold*10
+    cols_to_drop = nunique[nunique <= (df.shape[0]*threshold)/100 ].index
+    df = df.drop(cols_to_drop, axis=1)
+    df.info()
+    print("Unique Value Rate less than %"+ str(threshold) +" Dropped...")
+    return df
+#df = drop_nonunique(df,0.1)
+
+#Show Data types in dataset (df.dtypes.value_counts())
+def showdatatypes(df):
+    print(df.dtypes.value_counts())
+    print("Datatypes printed...")
+    df = df.dtypes
+    return df
+#showdatatypes(df)
+
+#Drop columns by Type
+def drop_type(df,type_todrop):
+    print("Dataset Type info Before Dropping...")
+    print(df.dtypes.value_counts())
+    df = df.select_dtypes(exclude=[type_todrop])
+    print("Dataset Type info After Dropping...")
+    print("Dropped Type: "+str(type_todrop))
+    print(df.dtypes.value_counts())
+    return df
+#df = drop_type(df,'object')
+
+#Drop exactly same columns from dataset ("Duplicates")
+def drop_duplicated(df):
+    df = df.T.drop_duplicates().T
+    print("Duplicated Columns Dropped...")
+    print(df.dtypes.value_counts())
+    return df
+#df = drop_duplicated(df)
+
+#Drop columns with percentage more than %x zeros.. with threshold
+def drop_zeros(df,threshold):
+    df = df.loc[:, df.isin([' ','NULL',0]).mean() <= threshold]
+    threshold = threshold*100
+    print("Zero Value Rate more than %"+str(threshold)+" Columns Dropped...")
+    return df
+#df = drop_zeros(df,0.9)
+
+#Change all data's to float64 type
+def df_tofloat(df):
+    df = df.astype(np.float64)
+    print(df.dtypes)
+    print("All Data Column types changed to Float64")
+    return df
+#df_tofloat(df)
+
+#Reindex dataset before normalizing
+def df_reindex(df): 
+    assert isinstance(df, pd.DataFrame), "df needs to be a pd.DataFrame"
+    df.dropna(inplace=True)
+    indices_to_keep = ~df.isin([np.nan, np.inf, -np.inf]).any(1)
+    df = df[indices_to_keep].astype(np.float64)
+    print("Dataset Reindexed...")
+    df.info()
+    return df
+#df_reindex(df)
+
+#Normalize data
+def df_normalize(df):
+    from sklearn.preprocessing import Normalizer
+    normalizer = Normalizer(norm='l2')
+    df = pd.DataFrame(normalizer.fit_transform(df),columns=df.columns)
+    print("Dataset Normalized...")
+    df.head()
+    return df
+#df_normalize(df)
+
+#! Remove Outlier
+#STD Dev Remove Outlier keep only the ones that are within +3 to -3 std dev in the column
+
+#Z Score All
+def df_zscore_show(df):
+    from scipy import stats
+    import numpy as np
+    z = np.abs(stats.zscore(df))
+    print("Z Scores of Dataset")
+    print(z)
+#df_zscore_show(df)
+
+#Z Score Show with threshold
+def df_zscore(df,threshold):
+    df = drop_nans(df)
+    df = df_fillmissing_wmean(df)
+    df = drop_type(df,'object')
+    df = drop_nonunique(df,0.1)
+    z = np.abs(stats.zscore(df))
+    print("Z Scores of Dataset where Z is bigger than "+str(threshold))
+    print(np.where(z > threshold))
+#df_zscore(df,3)
+
+#Remove Outliers Acc. to Z Score
+def df_removeoutlier_zscore(df,threshold):
+    df = drop_nans(df)
+    df = df_fillmissing_wmean(df)
+    df = drop_type(df,'object')
+    df = drop_nonunique(df,0.1)
+    z = np.abs(stats.zscore(df))
+    print("DataSet info Before Z:"+str(threshold)+" Score Outlier Remove...")
+    print(df.shape)
+    df = df[(z < threshold).all(axis=1)]
+    print("DataSet info After Z:"+str(threshold)+" Score Outlier Remove...")
+    print(df.shape)
+    return df
+#df_removeoutlier_zscore(df,3)
+
+#Remove outlier Acc. to Std Dev
+def df_removeoutlier_stddev(df,threshold):
+    df = drop_nans(df)
+    df = df_fillmissing_wmean(df)
+    df = drop_type(df,'object')
+    df = drop_nonunique(df,0.1)
+    print("DataSet info before Outlier Remove. Std Dev x "+str(threshold))
+    print(df.shape)
+    df = df[np.abs(df-df.mean()) <= (threshold*df.std())]
+    df = df.dropna(axis=0, how='any')
+    print("DataSet info before Outlier Remove. Std Dev x "+str(threshold))
+    print(df.shape)
+    return df
+#df_removeoutlier_stddev(df,3)
+
+#IQR Score Calculations of Dataset
+def df_iqrscore(df):
+    df = drop_nans(df)
+    df = df_fillmissing_wmean(df)
+    df = drop_type(df,'object')
+    df = drop_nonunique(df,0.1)
+    Q1 = df.quantile(0.25)
+    Q3 = df.quantile(0.75)
+    IQR = Q3 - Q1
+    print("IQR Scores for DataSet Columns...")
+    print(IQR)
+    return df
+#df_iqrscore(df)
+
+def df_removeoutlier_iqr(df):
+    df = drop_nans(df)
+    df = df_fillmissing_wmean(df)
+    df = drop_type(df,'object')
+    df = drop_nonunique(df,0.1)
+    Q1 = df.quantile(0.25)
+    Q3 = df.quantile(0.75)
+    IQR = Q3 - Q1
+    IQR = IQR * 4
+    test1 = df < (Q1 - IQR)
+    test2 = df > (Q3 + IQR)
+    print("test1 and test2 Values")
+    print(test1 | test2)
+    print("DataSet Shape Before IQR Outlier Remove")
+    print(df.shape)
+    df = df[~((df < (Q1-4 * IQR)) |(df > (Q3 + 4 * IQR))).any(axis=1)]
+    print("DataSet Shape After IQR Outlier Remove")
+    print(df.shape)
+    return df
+#df_removeoutlier_iqr(df)
+
+
+
+def df_featureselection(df,target,correlation_value):
+    df.columns = ["".join (c if c.isalnum() else "_" for c in str(x)) for x in df.columns]
+
+    x_cols = [col for col in df.columns if col not in [target] if df[col].dtype=='float64']
+
+    labels = []
+    values = []
+
+    for col in x_cols:
+        labels.append(col)
+        values.append(np.corrcoef(df[col].values, df[target].values)[0,1])
+    corr_df = pd.DataFrame({'col_labels':labels, 'corr_values':values})
+    corr_df = corr_df.sort_values(by='corr_values', ascending=False)
+    corr_df["corr_values"]  = corr_df["corr_values"].abs()
+    corr_df = corr_df[:8]
+
+
+
+    
+    rslt_df = corr_df.loc[(corr_df['corr_values'] >= correlation_value) | (corr_df['corr_values'] <= -correlation_value)]
+    rslt_df = rslt_df.reset_index()
+    rslt_df = rslt_df.drop(columns=['index'])
+
+    ind = np.arange(len(rslt_df))
+    fig, ax = plt.subplots()
+    rects = ax.barh(ind, np.array(rslt_df.corr_values.values), color='r')
+    ax.set_yticks(ind)
+    ax.set_yticklabels(rslt_df.col_labels.values, rotation='horizontal')
+    ax.set_xlabel("Correlation coefficient")
+    ax.set_title("Correlation coefficient of the variables")
+    ax.xaxis.grid(True, linestyle='--', which='major',
+                   color='grey', alpha=.25)
+
+    subplots_adjust(left=0.558, bottom=0.069, right=0.981, top=0.958,
+                wspace=0.2, hspace=0.2)
+    plt.show()
+
+    df_featureselection.correlation_features = list(rslt_df['col_labels'])
+    #Dataset must be trained just for the requiered features.
+    df_featureselection.correlation_features.append(target)
+
+    df_totrain = df[df_featureselection.correlation_features]
+    df_totrain.info()
+    
+    df_featureselection.Y = df_totrain[target]
+    df_totrain =  df_totrain.drop([target],axis = 1)
+    df_featureselection.X = df_totrain
+
+    #Normalizer Tryout
+    """
+    #!Normalizer
+    normalizer = Normalizer(norm='l2')
+
+    df_normalizer = pd.DataFrame(normalizer.fit_transform(df_totrain),columns=df_totrain.columns)
+    print(df_normalizer)
+
+    sns.boxplot(x="variable", y="value", data=pd.melt(df_normalizer))
+    plt.show()
+
+    df_totrain = df_normalizer
+    #df_totrain = df_removeoutlier_zscore(df_totrain,3)
+
+    df_featureselection.Y = df_totrain[target]
+    df_totrain =  df_totrain.drop([target],axis = 1)
+    df_featureselection.X = df_totrain
+    """
+    
+    """
+    #!Standard Scaler
+    from sklearn.preprocessing import StandardScaler
+
+    scaler = StandardScaler()   #Initalize scaler estimator
+
+    scaler.fit(df_totrain) #Remember to only fit scaler to training data
+
+    sns.boxplot(x="variable", y="value", data=pd.melt(df_totrain))
+    plt.show()
+
+    df_featureselection.Y = df_totrain[target]
+    df_totrain =  df_totrain.drop([target],axis = 1)
+    df_featureselection.X = df_totrain
+
+    """
+    """
+    #!Min Max Scaler
+    from sklearn.preprocessing import MinMaxScaler
+
+    scaler = MinMaxScaler(feature_range=(0,len(df_totrain.columns)))
+
+    df_minmax_scaler = pd.DataFrame(scaler.fit_transform(df_totrain),columns=df_totrain.columns)
+
+    sns.boxplot(x="variable", y="value", data=pd.melt(df_totrain))
+    plt.show()
+
+    df_totrain = df_minmax_scaler
+
+    df_featureselection.Y = df_totrain[target]
+    df_totrain =  df_totrain.drop([target],axis = 1)
+    df_featureselection.X = df_totrain
+    """
+    """
+    #!Max_Abs Scaler
+
+    from sklearn.preprocessing import MaxAbsScaler
+
+    scaler = MaxAbsScaler()
+
+    df_maxabs_scaler = pd.DataFrame(scaler.fit_transform(df_totrain),columns=df_totrain.columns)
+
+    sns.boxplot(x="variable", y="value", data=pd.melt(df_totrain))
+    plt.show()
+
+    df_totrain = df_maxabs_scaler
+
+    df_featureselection.Y = df_totrain[target]
+    df_totrain =  df_totrain.drop([target],axis = 1)
+    df_featureselection.X = df_totrain
+
+    """
+    """
+    #!Robust Scaler
+
+    from sklearn.preprocessing import RobustScaler
+
+    scaler = RobustScaler(quantile_range=(20,80))
+
+    df_robust_scaler = pd.DataFrame(scaler.fit_transform(df_totrain),columns=df_totrain.columns)
+    df_totrain = df_robust_scaler
+
+    sns.boxplot(x="variable", y="value", data=pd.melt(df_totrain))
+    plt.show()
+
+    df_featureselection.Y = df_totrain[target]
+    df_totrain =  df_totrain.drop([target],axis = 1)
+    df_featureselection.X = df_totrain
+    """
+
+    """
+    #!Scaling without initializing an estimator
+    from sklearn import preprocessing
+
+    df_scaler = pd.DataFrame(preprocessing.scale(df_totrain),columns=df_totrain.columns)
+    df_totrain = df_scaler
+    
+    sns.boxplot(x="variable", y="value", data=pd.melt(df_totrain))
+    plt.show()
+    
+    df_featureselection.Y = df_totrain[target]
+    df_totrain =  df_totrain.drop([target],axis = 1)
+    df_featureselection.X = df_totrain
+
+    """
+
+
+# In[ ]:
+
+
+
+
