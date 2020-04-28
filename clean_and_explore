@@ -1,0 +1,161 @@
+# from catboost import CatBoostRegressor
+# import xgboost as xgb
+# from graphviz import Digraph
+from math import sqrt
+from matplotlib import pyplot
+from pandas import DataFrame
+from scipy.stats import norm
+from scipy.stats import skew
+# import graphviz
+import json
+# import lightgbm as lgb
+import matplotlib
+# import pydot
+import re
+import scipy
+import scipy.stats as stats
+import seaborn as sns
+import sklearn
+import warnings
+import pickle
+import pandas as pd
+import numpy as np
+import os
+import sys
+import utilities
+import time
+import csv
+import matplotlib.pyplot as plt
+from pathlib import Path
+from tabulate import tabulate
+
+pd.set_option('display.float_format', lambda x: '%.3f' % x)
+pd.set_option('display.max_columns', None)
+sns.set(style='dark', context='notebook', palette='deep')
+
+print('matplotlib: {}'.format(matplotlib.__version__))
+print('sklearn: {}'.format(sklearn.__version__))
+print('scipy: {}'.format(scipy.__version__))
+print('seaborn: {}'.format(sns.__version__))
+print('pandas: {}'.format(pd.__version__))
+print('numpy: {}'.format(np.__version__))
+print('Python: {}'.format(sys.version))
+
+cwd = os.path.dirname(os.getcwd())  # os.getcwd() #str(Path(os.path.dirname(os.getcwd())).parent)
+# cwd = str(Path(cwd).parent)
+raw_directory = cwd + '\\data\\'
+processed_directory = cwd + '\\output\\'
+graph_directory = cwd + '\\graph\\'
+file_name = 'sample5K.csv'
+
+print(raw_directory + file_name)
+
+target_labels = ["PN_155301001_Result_MeasResults_Cvo_CvoA_Qber_Qber",
+                 "PN_155301001_Result_MeasResults_S2SDispersal_RangeS2STabTiCurve2",
+                 "PN_155301001_Result_MeasResults_Cvo_CvoC_Qber_Qber"]
+
+
+def get_and_describe_data(file_path: str):
+    '''
+        get data from  filePath as dataframe
+        filePath: full path of data
+    '''
+    df = utilities.csv2dataframe(file_path)
+    print(df.dtypes.value_counts())
+    print(df.describe())
+    print(df.info())
+    return df
+
+
+def drop_cols_including_with_text(df_in: DataFrame, text_list: list):
+    '''
+    dropColsStartingWithText: drop cols starting with text in text_list
+    df: data frame to drop columns
+    text_list: potential text list including texts to look for on df
+    '''
+
+    for text in text_list:
+        df_in = df_in[df_in.columns.drop(list(df_in.filter(regex=text)))]
+
+    return df_in
+
+
+def drop_constant_columns(df_in: DataFrame):
+    '''
+    drop_constant_columns: drop all columns whose unique values are equal to 1
+    df_in: input dataframe to check whether there exist  constant columns or not
+    '''
+    nunique = df_in.apply(pd.Series.nunique)
+
+    cols_to_drop = nunique[nunique == 1].index
+
+    df_in = df_in.drop(cols_to_drop, axis=1)
+
+    return  df_in
+
+
+def get_unique_process_number(df_in: DataFrame, splitter_in: str):
+    '''
+    get_unique_process_number: returns uniq. process number to split up data wrt this uniq. proc. numbers
+    df_in: input data frame to get uniq. process numbers from it's columns
+    '''
+    PN_list = [col.split(splitter_in)[0] for col in df_in.columns if splitter_in in col]
+    uniq_proc_num = list(set(PN_list))
+    print("unique process numbers: \n", uniq_proc_num.sort())
+    return uniq_proc_num
+
+
+def split_df_into_subdfs(df_in: DataFrame, uniq_proc_num: list):
+    '''
+    split_df_into_subdfs: split dataframe into sub dataframe using uniq_proc_num
+     df_in: input data frame to be splitted up into sub dataframe
+     uniq_proc_num: process number list to divde df_in into sub_dfs respectively
+    '''
+    sub_dfs = []
+    sub_df_cols = []
+    pn_ind = 0
+    uniq_proc_len = len(uniq_proc_num)
+    for col in df_in.columns:
+        if uniq_proc_num[pn_ind] in col:
+            sub_df_cols.append(col)
+        else:
+            print(sub_df_cols)
+            sub_dfs.append(df_in[sub_df_cols])
+            sub_df_cols = [col]
+            pn_ind += 1
+            if pn_ind == uniq_proc_len:
+                break
+    sub_dfs.append(df_in[sub_df_cols])
+    print("\nsub_dfs number: {}".format(len(sub_dfs)), ", uniq_proc_num: {}".format(len(uniq_proc_num)))
+    return sub_dfs
+
+
+def inspect_subframes(sub_dfs: list):
+    '''
+    inspect_subframes: display statiscs and null values and memory size
+    sub_dfs: list of sub data frames
+    '''
+    for sub_df in sub_dfs:
+        print(tabulate(sub_df.describe()))
+        print(tabulate(sub_df.info()))
+        print("*************")
+
+'''for testing your codes'''
+if __name__ == "__main__":
+    file_path = raw_directory + file_name
+    df = get_and_describe_data(file_path)
+    '''drop cols starting with text in text_list'''
+    dropped_columns = ["Unnamed", "SeriesLine", "TypeNumber", "ErrorBit", "Dmc", "SpcResultStruct", "ResultDate",
+                       "UniquePart"]
+    df = drop_cols_including_with_text(df, dropped_columns)
+    '''drop all columns whose unique values are equal to 1'''
+    df = drop_constant_columns(df)
+    '''get uniq. process number to split up data wrt this uniq. proc. numbers'''
+    splitter = "_Result"
+    uniq_process_num = get_unique_process_number(df, splitter)
+
+    ''' split_df_into_subdfs: split dataframe into sub dataframe using uniq_proc_num '''
+    sub_dfs = split_df_into_subdfs(df, uniq_process_num)
+
+    ''' display statiscs and null values and memory size '''
+    inspect_subframes(sub_dfs)
