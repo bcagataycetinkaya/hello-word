@@ -50,9 +50,9 @@ file_name = 'sample5K.csv'
 
 print(raw_directory + file_name)
 
-target_labels = ["PN_155301001_Result_MeasResults_Cvo_CvoA_Qber_Qber",
-                 "PN_155301001_Result_MeasResults_S2SDispersal_RangeS2STabTiCurve2",
-                 "PN_155301001_Result_MeasResults_Cvo_CvoC_Qber_Qber"]
+target_labels = ["Col1",
+                 "Col2",
+                 "Col3"]
 
 
 def get_and_describe_data(file_path: str):
